@@ -36,14 +36,26 @@ end
 
 ph0;
 ph1;
-%Add Zero-order phase
-fids=in.fids.*ones(size(in.fids))*exp(1i*ph0*pi/180);
 
-%re-calculate Specs using fft
-specs=fftshift(fft(fids,[],in.dims.t),in.dims.t);
+if length(ph0) > 1
 
-%Now add 1st-order phase
-specs=addphase1(specs,in.ppm,ph1,ppm0,in.Bo);
+    fids = in.fids;
+    for av = 1 : in.averages
+        fids(:,av)=in.fids(:,av).*ones(size(in.fids(:,av)))*exp(1i*ph0(av)*pi/180);
+        specs(:,av)=fftshift(fft(fids(:,av),[],in.dims.t),in.dims.t);
+        specs(:,av)=addphase1(specs(:,av),in.ppm,ph1,ppm0,in.Bo);
+    end
+else
+   %Add Zero-order phase
+    fids=in.fids.*ones(size(in.fids))*exp(1i*ph0*pi/180);
+
+    %re-calculate Specs using fft
+    specs=fftshift(fft(fids,[],in.dims.t),in.dims.t);
+
+    %Now add 1st-order phase
+    specs=addphase1(specs,in.ppm,ph1,ppm0,in.Bo);
+end
+
 
 %re-calculate Fids using fft
 %if the length of Fids is odd, then you have to do a circshift of one to
