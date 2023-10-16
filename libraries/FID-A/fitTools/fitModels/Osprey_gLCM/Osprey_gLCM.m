@@ -202,7 +202,7 @@ for kk = 1 : length(DataToModel)
         end       
         if isfield(ModelProcedure.Steps{ss},'parametrizations')
             opts.parametrizations  = ModelProcedure.Steps{ss}.parametrizations;         % specify parametrizations constructor
-            parameter = {'ph0','ph1','gaussLB','lorentzLB','freqShift','metAmpl','baseAmpl'};
+            parameter = {'ph0','ph1','GlobFreqShift','gaussLB','lorentzLB','freqShift','metAmpl','baseAmpl'};
             opts.parametrizations  = orderfields(opts.parametrizations,parameter(ismember(parameter, fieldnames(opts.parametrizations)))); % order struct names according to standard
         end
         if ~isfield(ModelProcedure.Steps{ss},'basisset')                       % which basis functions to include

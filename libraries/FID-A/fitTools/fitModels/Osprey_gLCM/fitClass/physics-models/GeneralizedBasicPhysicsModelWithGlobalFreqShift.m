@@ -267,6 +267,7 @@ function jac = forwardJacobian(x, NoiseSD, basisSet, baselineBasis, ppm, t, fitR
     % Partial derivatives to allow loop across
     dYdph0          = [];                                                   % Initialize partial derivative wrt ph0
     dYdph1          = [];                                                   % Initialize partial derivative wrt ph1
+    dYdGlobFreqShift= [];                                                   % Initialize partial derivative wrt GlobFreqShift
     dYdgaussLB      = [];                                                   % Initialize partial derivative wrt gaussLB
     dYdlorentzLB    = [];                                                   % Initialize partial derivative wrt lorentzLB
     dYdfreqShift    = [];                                                   % Initialize partial derivative wrt freqShift
@@ -306,10 +307,11 @@ function jac = forwardJacobian(x, NoiseSD, basisSet, baselineBasis, ppm, t, fitR
         baseAmpl = squeeze(inputParams.baseAmpl(sD,:))';                    % Get baseAmpl parameter
         ph0 = squeeze(inputParams.ph0(sD));                                 % Get ph0 parameter
         ph1 = squeeze(inputParams.ph1(sD));                                 % Get ph1 parameter
+        GlobFreqShift = squeeze(inputParams.GlobFreqShift(sD));             % Get GlobFreqShift parameter
 
         timeDomainMultiplier = zeros(size(fids));                           % Setup time domain multiplier
         for ll = 1:nBasisFcts                                               % Loop over basis functions
-            timeDomainMultiplier(:,ll) = exp(-(1i*freqShift(ll) + lorentzLB(ll) + gaussLB.^2.*t).*t)';  % Apply freqshifts, lorentzianLB, and gaussLB
+            timeDomainMultiplier(:,ll) = exp(-(1i*freqShift(ll) +1i*GlobFreqShift + lorentzLB(ll) + gaussLB.^2.*t).*t)';  % Apply freqshifts, lorentzianLB, and gaussLB
         end                                                                 % End loop over basis functions
 
         T_ph = exp(-1j .* (ph0 + ph1.*ppm)');                               % Create phase evolution
@@ -329,6 +331,9 @@ function jac = forwardJacobian(x, NoiseSD, basisSet, baselineBasis, ppm, t, fitR
         dYdgaussLB      = cat(3,dYdgaussLB,T_ph .* Fmett2gauss * metAmpl);              % Partial derivative wrt gaussLB
         dYdph0          = cat(3,dYdph0,(-1j) .* prediction(:,sD));                      % Partial derivative wrt ph0
         dYdph1          = cat(3,dYdph1,(-1j) .* ppm' .* prediction(:,sD));              % Partial derivative wrt ph1
+        dYdGlobFreqShift    = cat(3,dYdGlobFreqShift,sum(T_ph_basis .* (-1j) .* Fmett .* metAmpl',2)); % Partial derivative wrt GlobFreqShift
+        
+        
         if nBaselineComps ~= 0                                                          % Has baseline?
             dYdbaseAmpl           = cat(3,dYdbaseAmpl,T_ph_baseline .* baselineBasis);  % Partial derivative wrt baseAmpl
         else
@@ -340,6 +345,7 @@ function jac = forwardJacobian(x, NoiseSD, basisSet, baselineBasis, ppm, t, fitR
     % Reduce to fit range
     dYdph0          = dYdph0(indMin:indMax,:,:);                            % Cut out fit range
     dYdph1          = dYdph1(indMin:indMax,:,:);                            % Cut out fit range
+    dYdGlobFreqShift= dYdGlobFreqShift(indMin:indMax,:,:);                  % Cut out fit range
     dYdgaussLB      = dYdgaussLB(indMin:indMax,:,:);                        % Cut out fit range
     dYdlorentzLB    = dYdlorentzLB(indMin:indMax,:,:,:);                    % Cut out fit range
     dYdfreqShift    = dYdfreqShift(indMin:indMax,:,:,:);                    % Cut out fit range
@@ -353,6 +359,7 @@ function jac = forwardJacobian(x, NoiseSD, basisSet, baselineBasis, ppm, t, fitR
         for sD = 1 : secDim                                                 % Loop over indirect dimension
             ph0 = squeeze(inputParams.ph0(sD));                             % Get ph0 parameter
             ph1 = squeeze(inputParams.ph1(sD));                             % Get ph1 parameter
+            GlobFreqShift = squeeze(inputParams.GlobFreqShift(sD));         % Get GlobFreqShift parameter
             gaussLB = squeeze(inputParams.gaussLB(sD,:));                   % Get gaussLB parameter
             lorentzLB = squeeze(inputParams.lorentzLB(sD,:));               % Get lorentzLB parameter
             freqShift = squeeze(inputParams.freqShift(sD,:));               % Get freqShift parameter
@@ -360,6 +367,7 @@ function jac = forwardJacobian(x, NoiseSD, basisSet, baselineBasis, ppm, t, fitR
             baseAmpl = squeeze(inputParams.baseAmpl(sD,:))';                % Get baseAmpl parameter
             [dYdph0]        = addParameterRegularization(dYdph0,'ph0', parametrizations,ph0,1); % Add regularizer to ph0 parameter
             [dYdph1]        = addParameterRegularization(dYdph1,'ph1', parametrizations,ph1,1); % Add regularizer to ph1 parameter
+            [dYdGlobFreqShift] = addParameterRegularization(dYdGlobFreqShift,'GlobFreqShift', parametrizations,GlobFreqShift,1); % Add regularizer to GlobFreqShift parameter
             [dYdgaussLB]    = addParameterRegularization(dYdgaussLB,'gaussLB', parametrizations,gaussLB,1); % Add regularizer to gaussLB parameter
             [dYdlorentzLB]  = addParameterRegularization(dYdlorentzLB,'lorentzLB', parametrizations,lorentzLB,1); % Add regularizer to lorentzLB parameter
             [dYdfreqShift]  = addParameterRegularization(dYdfreqShift,'freqShift', parametrizations,freqShift,1); % Add regularizer to freqShift parameter
@@ -375,6 +383,7 @@ function jac = forwardJacobian(x, NoiseSD, basisSet, baselineBasis, ppm, t, fitR
     if secDim > 1                                                           % update each block in the jacobian according to the 2-D parametrization
         [dYdph0]        = updateJacobianBlock(dYdph0,'ph0', parametrizations,inputParams,SignalPart,NoiseSD); % Update jacobian block for ph0 parameter
         [dYdph1]        = updateJacobianBlock(dYdph1,'ph1', parametrizations,inputParams,SignalPart,NoiseSD); % Update jacobian block for ph1 parameter
+        [dYdGlobFreqShift]        = updateJacobianBlock(dYdGlobFreqShift,'GlobFreqShift', parametrizations,inputParams,SignalPart,NoiseSD); % Update jacobian block for GlobFreqShift parameter
         [dYdgaussLB]    = updateJacobianBlock(dYdgaussLB,'gaussLB', parametrizations,inputParams,SignalPart,NoiseSD); % Update jacobian block for gaussLB parameter
         [dYdlorentzLB]  = updateJacobianBlock(dYdlorentzLB,'lorentzLB', parametrizations,inputParams,SignalPart,NoiseSD); % Update jacobian block for lorentzLB parameter
         [dYdfreqShift]  = updateJacobianBlock(dYdfreqShift,'freqShift', parametrizations,inputParams,SignalPart,NoiseSD); % Update jacobian block for freqShift parameter
@@ -385,9 +394,9 @@ function jac = forwardJacobian(x, NoiseSD, basisSet, baselineBasis, ppm, t, fitR
     end
 
     if nBaselineComps ~= 0                                                  % Has baseline?
-        jac = cat(2, dYdph0, dYdph1, dYdgaussLB, dYdlorentzLB, dYdfreqShift, dYdmetAmpl, dYdbaseAmpl); % Create final jacobian
+        jac = cat(2, dYdph0, dYdph1, dYdGlobFreqShift ,dYdgaussLB, dYdlorentzLB, dYdfreqShift, dYdmetAmpl, dYdbaseAmpl); % Create final jacobian
     else
-        jac = cat(2, dYdph0, dYdph1, dYdgaussLB, dYdlorentzLB, dYdfreqShift, dYdmetAmpl);   % Create final jacobian
+        jac = cat(2, dYdph0, dYdph1, dYdGlobFreqShift ,dYdgaussLB, dYdlorentzLB, dYdfreqShift, dYdmetAmpl);   % Create final jacobian
     end
 
     if strcmp(SignalPart,'R')
@@ -493,10 +502,11 @@ function [Y, baseline, metabs, regu, penaltyTerm] = forwardModel(x, basisSet, ba
         baseAmpl    = squeeze(inputParams.baseAmpl(sD,:))';                 % Get baseAmpl parameter
         ph0         = squeeze(inputParams.ph0(sD));                         % Get ph0 parameter
         ph1         = squeeze(inputParams.ph1(sD));                         % Get ph1 parameter
+        GlobFreqShift = squeeze(inputParams.GlobFreqShift(sD));             % Get GlobFreqShift parameter
 
         timeDomainMultiplier = zeros(size(fids));                           % Setup time domain multiplier
         for ll = 1:nBasisFcts                                               % Loop over basis functions
-            timeDomainMultiplier(:,ll) = exp(-(1i*freqShift(ll) + lorentzLB(ll) + gaussLB.^2.*t).*t)';  % Apply freqshifts, lorentzianLB, and gaussLB
+            timeDomainMultiplier(:,ll) = exp(-(1i*freqShift(ll) +1i*GlobFreqShift+ lorentzLB(ll) + gaussLB.^2.*t).*t)';  % Apply freqshifts, lorentzianLB, and gaussLB
         end                                                                 % End loop over basis functions
 
         Fl = timeDomainMultiplier .* fids;                                  % Apply time domain multiplier to basis functions
@@ -525,14 +535,16 @@ function [Y, baseline, metabs, regu, penaltyTerm] = forwardModel(x, basisSet, ba
             baseAmpl    = squeeze(inputParams.baseAmpl(sD,:));              % Get baseAmpl parameter
             ph0         = squeeze(inputParams.ph0(sD));                     % Get ph0 parameter
             ph1         = squeeze(inputParams.ph1(sD));                     % Get ph1 parameter
+            GlobFreqShift = squeeze(inputParams.GlobFreqShift(sD));         % Get GlobFreqShift parameter
             [ph0Reg]        = addParameterRegularization([],'ph0', parametrizations,ph0,0); % Calculate regularizer for ph0 parameter
             [ph1Reg]        = addParameterRegularization([],'ph1', parametrizations,ph1,0); % Calculate regularizer for ph1 parameter
+            [GlobFreqShiftReg] = addParameterRegularization([],'GlobFreqShift', parametrizations,GlobFreqShift,0); % Calculate regularizer for GlobFreqShift parameter
             [gaussLBReg]    = addParameterRegularization([],'gaussLB', parametrizations,gaussLB,0); % Calculate regularizer for gaussLB parameter
             [lorentzLBReg]  = addParameterRegularization([],'lorentzLB', parametrizations,lorentzLB,0); % Calculate regularizer for lorentzLB parameter
             [freqShiftReg]  = addParameterRegularization([],'freqShift', parametrizations,freqShift,0); % Calculate regularizer for freqShift parameter
             [metAmplReg]    = addParameterRegularization([],'metAmpl', parametrizations,metAmpl,0); % Calculate regularizer for metAmpl parameter
             [baseAmplReg]   = addParameterRegularization([],'baseAmpl', parametrizations,baseAmpl',0); % Calculate regularizer for baseAmpl parameter
-            regu = cat(2,regu,[ph0Reg , ph1Reg, gaussLBReg, lorentzLBReg, freqShiftReg, metAmplReg, baseAmplReg]); % Concatenate regularizer
+            regu = cat(2,regu,[ph0Reg , ph1Reg, GlobFreqShiftReg, gaussLBReg, lorentzLBReg, freqShiftReg, metAmplReg, baseAmplReg]); % Concatenate regularizer
         end
     end                                                                     % End loop over indirect dimension
 
@@ -596,7 +608,7 @@ function paramStruct = x2pars(x, secDim, parametrizations)
         % Reshape the 1-D vectors according to the number of basis functions,
         % number of subspectra, and parametrization
         switch pars{ff}                                                     % Switch for parameter names
-            case {'ph0','ph1','gaussLB'}                                    % Parameters that appear once per spectrum
+            case {'ph0','ph1','GlobFreqShift','gaussLB'}                                    % Parameters that appear once per spectrum
                 if strcmp(parametrizations.(pars{ff}).type,'free')
                     paramStruct.(pars{ff}) = reshape(paramStruct.(pars{ff}),secDim,1);
                 end
@@ -662,7 +674,7 @@ function [x,indexStruct] = pars2x(paramStruct)
     pars = fields(paramStruct);                                             % Get parameter names
     x = [];                                                                 % Initialize 1-D x vector
     for ff = 1 : length(pars)                                               % Loop over parameters
-        if ismember(pars{ff},{'ph0','ph1','gaussLB','lorentzLB','freqShift','metAmpl','baseAmpl'}) % Skip new parameters from dynamic parameterization bc they should not turn up in the x vector
+        if ismember(pars{ff},{'ph0','ph1','GlobFreqShift','gaussLB','lorentzLB','freqShift','metAmpl','baseAmpl'}) % Skip new parameters from dynamic parameterization bc they should not turn up in the x vector
             if ~isempty(paramStruct.(pars{ff}))                             % baseAmpl is empty when no baseline included
                 if isempty(x)                                               % Setup index struct start value
                     indexStruct.(pars{ff}).start = 1;                       % Set index struct start value to 1
